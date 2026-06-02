@@ -1,0 +1,28 @@
+# API Keys - NEVER commit this
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual Environment
+rag_env/
+venv/
+env/
+.venv/
+
+# Streamlit
+.streamlit/
+
+# FAISS index files
+*.faiss
+*.pkl
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
