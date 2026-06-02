@@ -1,15 +1,13 @@
 # 🌐 LLM-Powered Web RAG Chatbot
 
-A production-grade RAG chatbot for real-time Q&A over any website.
-
-## ✅ Phase 1 — Working Streamlit UI
-- Full dark-themed UI with sidebar, chat bubbles, status badge
-- URL input + Load button (no backend yet)
-- Chat input form (no responses yet)
+## ✅ Phase 2 — Website Scraping
+- Added `scrape_website()` using BeautifulSoup4
+- Strips scripts, styles, nav, footer — extracts clean text
+- UI now shows scraped character count and text preview
 
 ## 📌 Roadmap
 - ✅ Phase 1 — Working Streamlit UI
-- ⬜ Phase 2 — Website scraping
+- ✅ Phase 2 — Website scraping
 - ⬜ Phase 3 — Chunking
 - ⬜ Phase 4 — FAISS + Embeddings
 - ⬜ Phase 5 — Groq integration
@@ -17,6 +15,6 @@ A production-grade RAG chatbot for real-time Q&A over any website.
 
 ## 🚀 Run
 ```bash
-pip install streamlit
+pip install -r requirements.txt
 streamlit run app.py
 ```
