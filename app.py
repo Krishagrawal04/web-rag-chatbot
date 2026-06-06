@@ -1,13 +1,7 @@
 import streamlit as st
-from rag_engine import scrape_website
+from rag_engine import scrape_website, chunk_text
 
-# ── Page Config ───────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="WebRAG Chatbot",
-    page_icon="🌐",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+st.set_page_config(page_title="WebRAG Chatbot", page_icon="🌐", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
@@ -36,18 +30,18 @@ st.markdown("""
         padding: 10px 28px !important; font-size: 0.9rem !important;
     }
     hr { border-color: #1e1e3a !important; }
+    [data-testid="stMetric"] { background: #0f0f1e; border: 1px solid #1e1e3a; border-radius: 10px; padding: 12px 16px; }
+    [data-testid="stMetricValue"] { color: #7c6ff7 !important; font-family: 'Space Mono', monospace !important; font-size: 1.4rem !important; }
+    [data-testid="stMetricLabel"] { color: #6060a0 !important; font-size: 0.72rem !important; text-transform: uppercase; }
     </style>
 """, unsafe_allow_html=True)
 
-# ── Session State ─────────────────────────────────────────────────────────────
 for key, default in {
-    "chat_history": [], "status": "idle",
-    "current_url": "", "scraped_text": "",
+    "status": "idle", "current_url": "", "doc_count": 0, "docs": [],
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### 🌐 WebRAG Chatbot")
     st.markdown("---")
@@ -57,7 +51,8 @@ with st.sidebar:
     load_btn = st.button("🚀 Load & Index Website", use_container_width=True)
     st.markdown("---")
     if st.session_state.status == "ready":
-        st.markdown('<span class="status-badge status-ready">● SCRAPED</span>', unsafe_allow_html=True)
+        st.markdown('<span class="status-badge status-ready">● CHUNKED</span>', unsafe_allow_html=True)
+        st.metric("Chunks", st.session_state.doc_count)
     elif st.session_state.status == "loading":
         st.markdown('<span class="status-badge status-loading">⟳ LOADING</span>', unsafe_allow_html=True)
     else:
@@ -65,16 +60,11 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("""
         <div style='font-family:Space Mono,monospace;font-size:0.68rem;color:#404070;line-height:1.8'>
-        STACK<br>
-        ├─ LangChain RAG<br>
-        ├─ Groq LLaMA3.3-70B<br>
-        ├─ Gemini Embeddings<br>
-        ├─ FAISS Vector Store<br>
-        └─ BeautifulSoup4
+        STACK<br>├─ LangChain RAG<br>├─ Groq LLaMA3.3-70B<br>
+        ├─ Gemini Embeddings<br>├─ FAISS Vector Store<br>└─ BeautifulSoup4
         </div>
     """, unsafe_allow_html=True)
 
-# ── Main ──────────────────────────────────────────────────────────────────────
 st.markdown('<div class="hero-title">WebRAG Chatbot</div>', unsafe_allow_html=True)
 st.markdown('<div class="hero-sub">Real-time Q&A over any website · Powered by LangChain + Groq + Gemini</div>', unsafe_allow_html=True)
 
@@ -86,18 +76,25 @@ if load_btn and url_input:
         with st.spinner("🔍 Scraping website..."):
             try:
                 text = scrape_website(url_input)
-                st.session_state.scraped_text = text
-                st.session_state.current_url = url_input
-                st.session_state.status = "ready"
                 st.toast("✅ Website scraped!", icon="🌐")
             except Exception as e:
                 st.error(f"Scraping failed: {e}")
                 st.session_state.status = "idle"
+                st.stop()
+        with st.spinner("✂️ Chunking content..."):
+            docs = chunk_text(text, url_input)
+            st.session_state.docs = docs
+            st.session_state.doc_count = len(docs)
+            st.session_state.current_url = url_input
+            st.session_state.status = "ready"
+            st.toast(f"✅ Created {len(docs)} chunks!", icon="✂️")
+        st.rerun()
 
 if st.session_state.status == "ready":
-    st.success(f"✅ Scraped `{st.session_state.current_url}` — {len(st.session_state.scraped_text)} characters")
-    with st.expander("📄 Preview scraped text"):
-        st.text(st.session_state.scraped_text[:1000] + "...")
+    st.success(f"✅ `{st.session_state.current_url}` chunked into **{st.session_state.doc_count} pieces**")
+    with st.expander("📄 Preview chunks"):
+        for i, doc in enumerate(st.session_state.docs[:3], 1):
+            st.markdown(f"**Chunk {i}:** {doc.page_content[:300]}...")
 else:
     st.markdown("""
         <div style='margin-top:3rem;text-align:center;padding:3rem;
