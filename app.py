@@ -1,5 +1,10 @@
+import os
 import streamlit as st
-from rag_engine import scrape_website, chunk_text
+from dotenv import load_dotenv
+from rag_engine import scrape_website, chunk_text, build_vectorstore
+
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 st.set_page_config(page_title="WebRAG Chatbot", page_icon="🌐", layout="wide", initial_sidebar_state="expanded")
 
@@ -37,7 +42,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 for key, default in {
-    "status": "idle", "current_url": "", "doc_count": 0, "docs": [],
+    "status": "idle", "current_url": "", "doc_count": 0, "vectorstore": None,
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -51,7 +56,7 @@ with st.sidebar:
     load_btn = st.button("🚀 Load & Index Website", use_container_width=True)
     st.markdown("---")
     if st.session_state.status == "ready":
-        st.markdown('<span class="status-badge status-ready">● CHUNKED</span>', unsafe_allow_html=True)
+        st.markdown('<span class="status-badge status-ready">● INDEXED</span>', unsafe_allow_html=True)
         st.metric("Chunks", st.session_state.doc_count)
     elif st.session_state.status == "loading":
         st.markdown('<span class="status-badge status-loading">⟳ LOADING</span>', unsafe_allow_html=True)
@@ -68,6 +73,10 @@ with st.sidebar:
 st.markdown('<div class="hero-title">WebRAG Chatbot</div>', unsafe_allow_html=True)
 st.markdown('<div class="hero-sub">Real-time Q&A over any website · Powered by LangChain + Groq + Gemini</div>', unsafe_allow_html=True)
 
+if not GEMINI_API_KEY:
+    st.error("⚠️ GEMINI_API_KEY not found! Please create a `.env` file from `.env.example`.")
+    st.stop()
+
 if load_btn and url_input:
     if not url_input.startswith("http"):
         st.error("Please enter a valid URL starting with http:// or https://")
@@ -83,18 +92,23 @@ if load_btn and url_input:
                 st.stop()
         with st.spinner("✂️ Chunking content..."):
             docs = chunk_text(text, url_input)
-            st.session_state.docs = docs
-            st.session_state.doc_count = len(docs)
-            st.session_state.current_url = url_input
-            st.session_state.status = "ready"
             st.toast(f"✅ Created {len(docs)} chunks!", icon="✂️")
+        with st.spinner("🔢 Generating embeddings & indexing with FAISS..."):
+            try:
+                vectorstore = build_vectorstore(docs, GEMINI_API_KEY)
+                st.session_state.vectorstore = vectorstore
+                st.session_state.doc_count = len(docs)
+                st.session_state.current_url = url_input
+                st.session_state.status = "ready"
+                st.toast("✅ Vectors stored in FAISS!", icon="🗄️")
+            except Exception as e:
+                st.error(f"Embedding failed: {e}")
+                st.session_state.status = "idle"
+                st.stop()
         st.rerun()
 
 if st.session_state.status == "ready":
-    st.success(f"✅ `{st.session_state.current_url}` chunked into **{st.session_state.doc_count} pieces**")
-    with st.expander("📄 Preview chunks"):
-        for i, doc in enumerate(st.session_state.docs[:3], 1):
-            st.markdown(f"**Chunk {i}:** {doc.page_content[:300]}...")
+    st.success(f"✅ `{st.session_state.current_url}` — {st.session_state.doc_count} chunks indexed in FAISS. Ready for Groq integration in Phase 5!")
 else:
     st.markdown("""
         <div style='margin-top:3rem;text-align:center;padding:3rem;
