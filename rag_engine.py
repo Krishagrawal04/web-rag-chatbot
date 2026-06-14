@@ -6,6 +6,9 @@ from bs4 import BeautifulSoup
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
+from langchain_groq import ChatGroq
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ConversationBufferMemory
 from langchain.schema import Document
 
 load_dotenv()
@@ -53,7 +56,6 @@ def build_vectorstore(docs: list, gemini_api_key: str) -> FAISS:
 
     BATCH_SIZE = 45
     vectorstore = None
-
     for i in range(0, len(docs), BATCH_SIZE):
         batch = docs[i:i + BATCH_SIZE]
         if vectorstore is None:
@@ -61,6 +63,28 @@ def build_vectorstore(docs: list, gemini_api_key: str) -> FAISS:
         else:
             vectorstore.add_documents(batch)
         if i + BATCH_SIZE < len(docs):
-            time.sleep(65)  # Respect rate limit between batches
-
+            time.sleep(65)
     return vectorstore
+
+
+def build_qa_chain(vectorstore: FAISS, groq_api_key: str) -> ConversationalRetrievalChain:
+    """Build a conversational RAG chain with multi-turn memory using Groq LLM."""
+    llm = ChatGroq(
+        api_key=groq_api_key,
+        model_name="llama-3.3-70b-versatile",
+        temperature=0.3,
+    )
+    # ConversationBufferMemory preserves full chat history for context-aware responses
+    memory = ConversationBufferMemory(
+        memory_key="chat_history",
+        return_messages=True,
+        output_key="answer",
+    )
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+    return ConversationalRetrievalChain.from_llm(
+        llm=llm,
+        retriever=retriever,
+        memory=memory,
+        return_source_documents=True,
+        verbose=False,
+    )
